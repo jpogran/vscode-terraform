@@ -4,6 +4,12 @@ permissions:
   contents: write # for uploading release artifacts
 
 on:
+  workflow_dispatch:
+    inputs:
+      langserver:
+        description: 'The terraform-ls version to use. If not specified will use version in package.json'
+        required: false
+        type: string
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
