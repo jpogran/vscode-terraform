@@ -1,0 +1,65 @@
+name: Publish HashiCorp VS Code Extension
+
+on:
+  workflow_call:
+    inputs:
+      vsce_target:
+        required: true
+        default: "universal"
+        type: string
+      ls_target:
+        required: false
+        default: ""
+        type: string
+    secrets: inherit
+
+jobs:
+  package:
+    name: Package Extension
+    runs-on: "ubuntu-latest"
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Read extension version
+        id: ext-version
+        run: |
+          content=`cat ./package.json | jq -r .version`
+          echo "::set-output name=content::$content"
+
+      - name: Ensure version matches tag
+        if: ${{ github.ref != format('refs/tags/v{0}', steps.ext-version.outputs.content) }}
+        run: |
+          echo "Version mismatch!"
+          echo "Received ref: ${{ github.ref }}"
+          echo "Expected ref: refs/tags/v${{ steps.ext-version.outputs.content }}"
+          exit 1
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Package VSIX
+        run: npm run package -- --target=${{ inputs.vsce_target }}
+        env:
+          ls_target: ${{ inputs.ls_target }}
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ inputs.vsce_target }}
+          path: "*.vsix"
+
+  publish:
+    name: Publish Extension
+    runs-on: ubuntu-latest
+    needs: package
+    if: success() && startsWith( github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/download-artifact@v3
+      - name: Publish Extension to VS Code Marketplace
+        run: echo "success"
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
